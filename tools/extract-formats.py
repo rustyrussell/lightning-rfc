@@ -16,6 +16,7 @@ def guess_alignment(message,name,sizestr):
     # - node_announcement.ipv6 has size 16, but alignment 4 (to align IPv4 addr).
     # - node_announcement.alias is a string, so alignment 1
     # - signatures have no alignment requirement.
+    # - sha256 have 4 byte alignment requirement (update_fail_malformed_htlc)
     if name.startswith('pad'):
         return 1
 
@@ -31,6 +32,9 @@ def guess_alignment(message,name,sizestr):
     if 'signature' in name:
        return 1
     
+    if 'sha256' in name:
+       return 4
+
     # Size can be variable.
     try:
         size = int(sizestr)
