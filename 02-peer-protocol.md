@@ -130,8 +130,9 @@ amount HTLC it is willing to accept from this peer.
 
 The receiving node MUST fail the channel if `to-self-delay` is
 unreasonably large.  The receiver MAY fail the channel if
-`funding-satoshis` is too small, and MUST fail the channel if
-`push-msat` is greater than `funding-amount` * 1000.
+`funding-satoshis` is too small, MUST fail the channel if
+`funding-satoshis` is greater than or equal to 2^24, and MUST fail the channel if
+`push-msat` is greater than `funding-satoshis` * 1000.
 The receiving node MAY fail the channel if it considers
 `htlc-minimum-msat` too large, `max-htlc-value-in-flight` too small, `channel-reserve-satoshis` too large, or `max-accepted-htlcs` too small.  It MUST fail the channel if `max-accepted-htlcs` is greater than 511.
 
