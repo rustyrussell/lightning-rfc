@@ -94,6 +94,7 @@ desire to set up a new channel.
    * [`4`:`feerate_per_kw`]
    * [`2`:`to_self_delay`]
    * [`2`:`max_accepted_htlcs`]
+   * [`1`:`announce_channel`]
    * [`33`:`funding_pubkey`]
    * [`33`:`revocation_basepoint`]
    * [`33`:`payment_basepoint`]
@@ -113,12 +114,21 @@ The `temporary_channel_id` is used to identify this channel until the funding tr
 
 `feerate_per_kw` indicates the initial fee rate by 1000-weight (ie. 4 times by the more normally-used 'feerate per kilobyte') which this side will pay for commitment and HTLC transactions as described in [BOLT #3](03-transactions.md#fee-calculation) (this can be adjusted later with an `update_fee` message).  `to_self_delay` is the number of blocks that the other nodes to-self outputs must be delayed, using `OP_CHECKSEQUENCEVERIFY` delays; this is how long it will have to wait in case of breakdown before redeeming its own funds.
 
+The `announce_channel` encodes a boolean value into a single byte. If `true`
+(`0x01`), then this indicates the initiator of the funding flow wishes to
+advertise this channel publicly to the network as detailed within [BOLT #7](https://github.com/lightningnetwork/lightning-rfc/blob/master/07-routing-gossip.md#bolt-7-p2p-node-and-channel-discovery). 
+If `false` (`0x00`), then the initiator wishes to keep this channel private.
+
 The `funding_pubkey` is the public key in the 2-of-2 multisig script of the funding transaction output.  The `revocation_basepoint` is combined with the revocation preimage for this commitment transaction to generate a unique revocation key for this commitment transaction. The `payment_basepoint` and `delayed_payment_basepoint` are similarly used to generate a series of keys for any payments to this node: `delayed_payment_basepoint` is used to for payments encumbered by a delay.  Varying these keys ensures that the transaction ID of each commitment transaction is unpredictable by an external observer, even if one commitment transaction is seen: this property is very useful for preserving privacy when outsourcing penalty transactions to third parties.
 
 FIXME: Describe Dangerous feature bit for larger channel amounts.
 
 
 #### Requirements
+
+If `announce_channel` is set to `false` (`0x00`), then both sides MUST
+NOT send `announcement_signatures` messages after the `funding_locked`
+message is sent.
 
 A sending node MUST ensure that the `chain_hash` value identifies the chain they
 they wish to open the channel within. For the Bitcoin blockchain, the
@@ -141,6 +151,9 @@ The sender SHOULD set `dust_limit_satoshis` to a sufficient value to
 allow commitment transactions to propagate through the Bitcoin
 network.  It SHOULD set `htlc_minimum_msat` to the minimum
 amount HTLC it is willing to accept from this peer.
+
+The receiving not MUST failed the channel if `announce_channel` is set
+to `false` (`0x00`), yet they wish to publicly announce the channel.
 
 The receiving node MUST accept a new `open_channel` message if the
 connection has been re-established after receiving a previous
