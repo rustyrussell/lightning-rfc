@@ -94,12 +94,12 @@ desire to set up a new channel.
    * [`4`:`feerate_per_kw`]
    * [`2`:`to_self_delay`]
    * [`2`:`max_accepted_htlcs`]
-   * [`1`:`announce_channel`]
    * [`33`:`funding_pubkey`]
    * [`33`:`revocation_basepoint`]
    * [`33`:`payment_basepoint`]
    * [`33`:`delayed_payment_basepoint`]
    * [`33`:`first_per_commitment_point`]
+   * [`1`:`announce_channel`]
 
 
 The `chain_hash` value denotes the exact blockchain the opened channel will
@@ -126,10 +126,6 @@ FIXME: Describe Dangerous feature bit for larger channel amounts.
 
 #### Requirements
 
-If `announce_channel` is set to `false` (`0x00`), then both sides MUST
-NOT send `announcement_signatures` messages after the `funding_locked`
-message is sent.
-
 A sending node MUST ensure that the `chain_hash` value identifies the chain they
 they wish to open the channel within. For the Bitcoin blockchain, the
 `chain_hash` value MUST be (encoded in hex):
@@ -152,8 +148,7 @@ allow commitment transactions to propagate through the Bitcoin
 network.  It SHOULD set `htlc_minimum_msat` to the minimum
 amount HTLC it is willing to accept from this peer.
 
-The receiving not MUST failed the channel if `announce_channel` is set
-to `false` (`0x00`), yet they wish to publicly announce the channel.
+The receiving node MAY fail the channel if `announce_channel` is `0x00` and it wants to publicly announce the channel.
 
 The receiving node MUST accept a new `open_channel` message if the
 connection has been re-established after receiving a previous
