@@ -20,6 +20,10 @@ use 'lightning:' as a prefix before the BOLT-11 encoding (note: not
 as per BIP-21, with key 'lightning' and value equal to the BOLT-11
 encoding.
 
+If a Content-Type is desired, the current recommendation is
+`application/lightning-payment;version=bolt11` to allow for future
+versions.
+
 ## Requirements
 
 A writer MUST encode the the payment request in Bech32 as specified in
