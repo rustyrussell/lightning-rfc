@@ -666,7 +666,8 @@ timeouts.  It also causes a natural ratelimiting of queries.
 
 1. tlv: `query_channel_range_tlv`
 2. types:
-   1. type: 1 (`want_timestamps_and_checksums`)
+   1. type: 1 (`want_timestamps`)
+   1. type: 2 (`want_checksums`)
 
 1. type: 264 (`reply_channel_range`) (`gossip_queries`)
 2. data:
@@ -680,16 +681,22 @@ timeouts.  It also causes a natural ratelimiting of queries.
 
 1. tlv: `reply_channel_range_tlv`
 2. types:
-   1. type: 1 (`timestamps_and_checksums`)
+   1. type: 1 (`timestamps`)
    2. data:
        * [`1`:`encoding_type`]
-       * [`len-1`:`encoded_timestamps_and_checksums`]
+       * [`len-1`:`encoded_timestamps`]
+   1. type: 2 (`checksums`)
+   2. data:
+       * [`len`:`checksums_type`]
 
-1. subtype: `timestamps_and_checksums_type`
+1. subtype: `timestamps_type`
 2. data:
        * [`4`:`timestamp_node_id_1`]
-       * [`4`:`checksum_node_id_1`]
        * [`4`:`timestamp_node_id_2`]
+
+1. subtype: `checksums_type`
+2. data:
+       * [`4`:`checksum_node_id_1`]
        * [`4`:`checksum_node_id_2`]
 
 This allows a query for channels within specific blocks.
@@ -702,7 +709,7 @@ The sender of `query_channel_range`:
   that it wants the `reply_channel_range` to refer to
   - MUST set `first_blocknum` to the first block it wants to know channels for
   - MUST set `number_of_blocks` to 1 or greater.
-  - MAY append a TLV with `want_timestamps_and_checksums`.
+  - MAY append a TLV with `want_timestamps` and/or `want_checksums`.
 
 The receiver of `query_channel_range`:
   - if it has not sent all `reply_channel_range` to a previously received `query_channel_range` from this sender:
@@ -719,14 +726,18 @@ The receiver of `query_channel_range`:
       - MUST set `complete` to 0.
     - otherwise:
       - SHOULD set `complete` to 1.
-    - if the `query_channel_range` contains `want_timestamps_and_checksums`:
-      - SHOULD append `reply_channel_range_tlv` containing `timestamps_and_checksums`.
-      - For `timestamps_and_checksums`:
+    - if the `query_channel_range` contains `want_timestamps`:
+      - SHOULD append `reply_channel_range_tlv` containing `timestamps`.
+      - For `timestamps`:
         - MUST set `encoding_type` as for `encoded_short_ids`
-        - MUST encode one `timestamps_and_checksums` for each short_channel_id in `encoded_short_ids` as follows:
+        - MUST encode one `timestamps_type` for each short_channel_id in `encoded_short_ids` as follows:
           - set `timestamp_node_id_1` to the timestamp of the `channel_update` for `node_id_1`, or 0 if there was no `channel_update` from that node.
-          - set `checksum_node_id_1` to the checksum of the `channel_update` for `node_id_1`, or 0 if there was no `channel_update` from that node.
           - set `timestamp_node_id_2` to the timestamp of the `channel_update` for `node_id_2`, or 0 if there was no `channel_update` from that node.
+    - if the `query_channel_range` contains `want_checksums`:
+      - SHOULD append `reply_channel_range_tlv` containing `checksums`.
+      - For `checksums`:
+        - MUST include one `checksums_type` for each short_channel_id in `encoded_short_ids` as follows:
+          - set `checksum_node_id_1` to the checksum of the `channel_update` for `node_id_1`, or 0 if there was no `channel_update` from that node.
           - set `checksum_node_id_1` to the checksum of the `channel_update` for `node_id_2`, or 0 if there was no `channel_update` from that node.
         - The checksum of a `channel_update` is the Adler32 checksum without its `signature` and `timestamp` fields.
 
