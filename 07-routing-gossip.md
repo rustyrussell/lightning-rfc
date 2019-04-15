@@ -667,7 +667,7 @@ timeouts.  It also causes a natural ratelimiting of queries.
 1. tlv: `query_channel_range_tlv`
 2. types:
    1. type: 1 (`want_timestamps`)
-   1. type: 2 (`want_checksums`)
+   1. type: 3 (`want_checksums`)
 
 1. type: 264 (`reply_channel_range`) (`gossip_queries`)
 2. data:
@@ -685,7 +685,7 @@ timeouts.  It also causes a natural ratelimiting of queries.
    2. data:
        * [`1`:`encoding_type`]
        * [`len-1`:`encoded_timestamps`]
-   1. type: 2 (`checksums`)
+   1. type: 3 (`checksums`)
    2. data:
        * [`len`:`checksums_type`]
 
