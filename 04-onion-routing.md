@@ -182,6 +182,7 @@ The `length` field determines both the length and the format of the `hop_payload
 
  - Legacy `hop_data` format, identified by a single `0x00` byte for length.
  - `tlv_payload` format, identified by any other length.
+ - A single `0x01` byte for length is reserved for future use to signal a different payload format. This is safe since no TLV value can ever be shorter than 2 bytes.
 
 ## Legacy `hop_data` payload format
 
