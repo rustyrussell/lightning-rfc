@@ -38,7 +38,7 @@ The following feature bits are currently assigned by this specification:
 |------|-------------------|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | Bits | Name              | Description                                                 | Link                                                                                                             |
 |------|-------------------|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| 0/1  | `var_onion_optin` | This node requires/supports variable payload routing onions | [routing onion specification](https://github.com/lightningnetwork/lightning-rfc/blob/master/04-onion-routing.md) |
+| 8/9  | `var_onion_optin` | This node requires/supports variable payload routing onions | [routing onion specification](https://github.com/lightningnetwork/lightning-rfc/blob/master/04-onion-routing.md) |
 
 
 ## Requirements
