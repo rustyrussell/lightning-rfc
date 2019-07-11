@@ -246,13 +246,13 @@ This is a more flexible format, which avoids the redundant `short_channel_id` fi
 2. types:
     1. type: 2 (`amt_to_forward`)
     2. data:
-        * [`integer`:`amt_to_forward`]
+        * [`tu64`:`amt_to_forward`]
     1. type: 4 (`outgoing_cltv_value`)
     2. data:
-        * [`integer`:`outgoing_cltv_value`]
+        * [`tu32`:`outgoing_cltv_value`]
     1. type: 6 (`short_channel_id`)
     2. data:
-        * [`8`:`short_channel_id`]
+        * [`short_channel_id`:`short_channel_id`]
 
 ### Requirements
 
