@@ -333,6 +333,7 @@ duplicative
 DoS
 ECDSA
 TLV
+tlv
 namespace
 verifier
 verifiers
