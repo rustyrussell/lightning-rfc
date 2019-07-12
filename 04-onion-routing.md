@@ -162,7 +162,7 @@ It is 1300 bytes long and has the following structure:
 1. type: `hop_payloads`
 2. data:
    * [`varint`:`length`]
-   * [`32*byte`:`hop_payload`]
+   * [`hop_payload_length`:`hop_payload`]
    * [`32*byte`:`HMAC`]
    * ...
    * `filler`
@@ -180,9 +180,9 @@ sending peer hasn't forwarded an ill-crafted HTLC.
 
 The `length` field determines both the length and the format of the `hop_payload` field; the following formats are defined:
 
- - Legacy `hop_data` format, identified by a single `0x00` byte for length.
- - `tlv_payload` format, identified by any other length.
- - A single `0x01` byte for length is reserved for future use to signal a different payload format. This is safe since no TLV value can ever be shorter than 2 bytes.
+ - Legacy `hop_data` format, identified by a single `0x00` byte for length. In this case the `hop_payload_length` is defined to be 32 bytes.
+ - `tlv_payload` format, identified by any length over `1`. In this case the `hop_payload_length` is equal to the numeric value of `length`.
+ - A single `0x01` byte for length is reserved for future use to signal a different payload format. This is safe since no TLV value can ever be shorter than 2 bytes. In this case the `hop_payload_length` MUST be defined in the future specification making use of this `length`.
 
 ## Legacy `hop_data` payload format
 
