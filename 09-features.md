@@ -29,11 +29,7 @@ These flags may only be used in the `init` message:
 
 ## Assigned `globalfeatures` flags
 
-There are currently no `globalfeatures` flags.
-
-## Assigned `node_announcement` feature flags
-
-The following feature bits are currently assigned by this specification:
+The following `globalfeatures` bits are currently assigned by this specification:
 
 |------|-------------------|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | Bits | Name              | Description                                                 | Link                                                                                                             |
