@@ -1,4 +1,9 @@
 personal_ws-1.1 en 264
+bitfields
+checksums
+timestamps
+tlv
+TLV
 secp
 sig
 unguessable
@@ -330,6 +335,8 @@ zlib
 ZLIB
 APIs
 duplicative
+CRC
+varint
 DoS
 ECDSA
 TLV
