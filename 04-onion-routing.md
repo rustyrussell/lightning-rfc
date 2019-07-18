@@ -257,6 +257,9 @@ This is a more flexible format, which avoids the redundant `short_channel_id` fi
     1. type: 6 (`short_channel_id`)
     2. data:
         * [`short_channel_id`:`short_channel_id`]
+    1. type: 8 (`basic_mpp`)
+	2. data:
+	    * [`tu64`:`total_msat`]
 
 ### Requirements
 
@@ -269,7 +272,81 @@ The writer:
 The reader:
   - MUST return an error if `amt_to_forward` or `outgoing_cltv_value` are not present.
 
-The requirements for the contents of these fields are specified [above](#legacy-hop_data-payload-format).
+The requirements for the contents of these fields are specified [above](#legacy-hop_data-payload-format)
+and [below](#basic-multi-part-payments).
+
+### Basic Multi-Part Payments
+
+If the final node receives an onion packet with the `basic_mpp` field,
+then the payment MAY be a "base" atomic multipath payment.  Such
+"base" atomic multipath payments will use the same `payment_hash` for
+all paths.
+
+The `amt_to_forward` value will be the amount for this partial payment
+only.  The `basic_mpp` flag is a promise by the ultimate sender that
+the rest of the payment will follow in succeeding HTLCs; we call these
+HTLCs, which have the same preimage, an "HTLC set".
+
+#### Requirements
+
+The writer:
+  - MUST not include `basic_mpp` for any non-final node.
+  - if `basic_mpp` feature was not set in the invoice:
+    - MUST NOT include `basic_mpp` for the final node.
+  - otherwise:
+    - MAY include `basic_mpp` for the final node.
+    - if it does include `basic_mpp`:
+      - MAY send more than one HTLC to pay the invoice.
+      - MUST use the same `payment_preimage` on all HTLCs in the set.
+      - MUST set `total_msat` to the amount it wishes to pay.
+      - SHOULD send all payments at approximately the same time.
+      - SHOULD try to use diverse paths to the recipient for each HTLC.
+      - SHOULD retry and/or re-divide HTLCs which fail.
+      - if the invoice specifies an `amount`:
+          - MUST set `total_msat` to at least that `amount`, and less
+            than or equal to twice `amount`.
+      - MUST ensure that the total `amount_msat` of the HTLC set which arrive at the payee
+        is at greater or equal to `total_msat`.
+      - MUST ensure that no (incomplete) non-failed subset of the HTLC set adds
+        to a total `amount_msat` greater or equal to `total_msat`.
+
+The reader:
+  - if `basic_mpp` is present:
+    - MUST fail the HTLC if it would otherwise fail a single HTLC of value
+      `total_msat`, `payment_hash` or `ctlv_expiry`.
+    - otherwise:
+	  - MUST add it to the HTLC set corresponding to that `payment_hash`.
+	  - SHOULD fail the entire HTLC set if `total_msat` is not the same for
+	    all HTLCs in the set.
+    - if the total `amount_msat` of this HTLC set equals or exceeds `total_msat`:
+      - SHOULD fulfill all HTLCs in the HTLC set
+    - otherwise:
+      - SHOULD wait for at least 60 seconds for remaining members of the HTLC set.
+    - MUST fail all HTLCs in the HTLC set after a reasonable timeout.
+    - if it fulfills any HTLCs in the HTLC set:
+       - MUST fulfill the entire HTLC set.
+
+#### Rationale
+
+If `basic_mpp` is present it causes a delay to allow other partial
+payments to combine.  The total amount must be sufficient for the
+desired payment, just as it must be for single payments.
+
+Because invoices do not necessarily specify an amount, and because
+payers can add noise to the final amount, the total amount must be
+sent explicitly.  The requirements allow exceeding this slightly, as
+it simplfies adding noise to the amount when splitting, as well as
+scenarios in which the senders are genuinely independent (friends
+splitting a bill, for example).
+
+The subset restriction prevents the preimage being released before all
+the partial payments have arrived: that would allow any intermediate
+node to immediately claim any outstanding partial payments.
+
+An implementation may choose not to fulfill an HTLC set which
+otherwise meets the amount criterion (eg. some other failure, or
+invoice timeout), however if it were to fulfill only some of them,
+intermediary nodes could simply claim the remaining ones.
 
 # Accepting and Forwarding a Payment
 
