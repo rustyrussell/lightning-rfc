@@ -245,20 +245,20 @@ This is a more flexible format, which avoids the redundant `short_channel_id` fi
 
 1. tlvs: `tlv_payload`
 2. types:
-    1. type: 0 (`destination_signal`)
-    2. data:
+    * type: 0 (`destination_signal`)
+    * data:
 	    * Empty
-    1. type: 2 (`amt_to_forward`)
-    2. data:
+    * type: 2 (`amt_to_forward`)
+    * data:
         * [`tu64`:`amt_to_forward`]
-    1. type: 4 (`outgoing_cltv_value`)
-    2. data:
+    * type: 4 (`outgoing_cltv_value`)
+    * data:
         * [`tu32`:`outgoing_cltv_value`]
-    1. type: 6 (`short_channel_id`)
-    2. data:
+    * type: 6 (`short_channel_id`)
+    * data:
         * [`short_channel_id`:`short_channel_id`]
-    1. type: 8 (`basic_mpp`)
-	2. data:
+    * type: 8 (`basic_mpp`)
+	* data:
 	    * [`tu64`:`total_msat`]
 
 ### Requirements
