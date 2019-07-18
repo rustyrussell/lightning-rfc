@@ -277,6 +277,10 @@ The field is big-endian.  The least-significant bit is numbered 0,
 which is _even_, and the next most significant bit is numbered 1,
 which is _odd_.
 
+| Bits | Name        |Description            | Link                                           |
+|------|-------------|-----------------------|------------------------------------------------|
+| 0/1  | `basic_mpp` | Payee understands mpp.| [BOLT #4](04-onion-routing.md#basic-multi-part-payments) |
+
 # Payer / Payee Interactions
 
 These are generally defined by the rest of the Lightning BOLT series,
