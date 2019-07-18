@@ -243,7 +243,7 @@ parameters may lead to extraneous routing failure.
 
 This is a more flexible format, which avoids the redundant `short_channel_id` field for the final node. 
 
-1. tlv: `tlv_payload`
+1. tlvs: `tlv_payload`
 2. types:
     1. type: 0 (`destination_signal`)
     2. data:
