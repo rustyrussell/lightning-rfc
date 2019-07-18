@@ -306,7 +306,7 @@ The writer:
           - MUST set `total_msat` to at least that `amount`, and less
             than or equal to twice `amount`.
       - MUST ensure that the total `amount_msat` of the HTLC set which arrive at the payee
-        is at greater or equal to `total_msat`.
+        is greater or equal to `total_msat`.
       - MUST ensure that no (incomplete) non-failed subset of the HTLC set adds
         to a total `amount_msat` greater or equal to `total_msat`.
 
@@ -335,7 +335,7 @@ desired payment, just as it must be for single payments.
 Because invoices do not necessarily specify an amount, and because
 payers can add noise to the final amount, the total amount must be
 sent explicitly.  The requirements allow exceeding this slightly, as
-it simplfies adding noise to the amount when splitting, as well as
+it simplifies adding noise to the amount when splitting, as well as
 scenarios in which the senders are genuinely independent (friends
 splitting a bill, for example).
 

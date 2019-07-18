@@ -279,7 +279,7 @@ which is _odd_.
 
 | Bits | Name        |Description            | Link                                           |
 |------|-------------|-----------------------|------------------------------------------------|
-| 0/1  | `basic_mpp` | Payee understands mpp.| [BOLT #4](04-onion-routing.md#basic-multi-part-payments) |
+| 0/1  | `basic_mpp` | Payee understands M.P.P.| [BOLT #4](04-onion-routing.md#basic-multi-part-payments) |
 
 # Payer / Payee Interactions
 
