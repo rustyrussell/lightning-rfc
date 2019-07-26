@@ -116,6 +116,10 @@ def pack(typename, v):
     if typename in name2structfmt:
         return struct.pack(name2structfmt[typename], v)
 
+    # FIXME: This is our non-TLV code
+    if typename.endswith('_tlvs'):
+        return v
+
     # Pack directly as bytes
     assert len(v) == name2size[typename]
     return bytes(v)
@@ -270,6 +274,11 @@ class Field(object):
         except ValueError:
             raise LineError(line, "Non-hex value for {}: '{}'"
                             .format(typename, s))
+        # FIXME: This is TLV without, y'know, type, length, or um, value.
+        # We treat as hex for now.
+        if typename.endswith('_tlvs'):
+            return v
+
         if len(v) != name2size[typename]:
             raise LineError(line, "{} must be {} bytes long not {}"
                             .format(typename, name2size[typename], len(v)))
@@ -384,7 +393,6 @@ def read_csv(args):
             # eg. msgdata,channel_reestablish,your_last_per_commitment_secret
             #     ,secret,,1option209
             m.addField(Field(m, parts[2], parts[3], parts[4], parts[5:]))
-
 
 def parse_params(line, parts, compulsorykeys, optionalkeys=[]):
     """Given an array of <key>=<val> make a dict, checking we have all compulsory
