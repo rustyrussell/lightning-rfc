@@ -56,6 +56,23 @@ EXPECT_INIT=expect-send: type=init
     # If you require `option_data_loss_protect`, you will advertize it even.
     1. $EXPECT_INIT localfeatures=01/03 option_data_loss_protect/even
 
+    # If you don't support `option_dual_fund`, you will be ok if
+    # we ask for it.
+    1. expect-send: type=init localfeatures=00000000/30000000 !option_dual_fund
+    2. recv: type=init globalfeatures= localfeatures=20000000 !option_dual_fund
+
+    # If you don't support `option_dual_fund`, you will error if
+    # we require it.
+    1. expect-send: type=init localfeatures=00000000/30000000 !option_dual_fund
+    2. recv: type=init globalfeatures= localfeatures=10000000 !option_dual_fund
+    3. expect-error: !option_dual_fund
+
+    # If you support `option_dual_fund`, you will advertize it odd.
+    1. $EXPECT_INIT localfeatures=20000000/30000000 option_dual_fund/odd
+
+    # If you require `option_dual_fund`, you will advertize it even.
+    1. $EXPECT_INIT localfeatures=10000000/30000000 option_dual_fund/even
+
     # Note: it's undefined what you'll do if implementation requires
     # an option and isn't offered it.  The recipient of the required feature
     # bit should notice the requirement and error.
