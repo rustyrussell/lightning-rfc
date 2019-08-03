@@ -116,6 +116,13 @@ def pack(typename, v):
     if typename in name2structfmt:
         return struct.pack(name2structfmt[typename], v)
 
+    # FIXME: This is our non-TLV code
+    if typename.endswith('_tlvs'):
+        return v
+
+    if typename in Subtype.objs:
+        return Subtype.objs[typename].pack(v)
+
     # Pack directly as bytes
     assert len(v) == name2size[typename]
     return bytes(v)
@@ -130,6 +137,14 @@ def unpack_from(typename, bytestream, offset):
         return (struct.calcsize(name2structfmt[typename]),
                 struct.unpack_from(name2structfmt[typename], bytestream,
                                    offset)[0])
+
+    # FIXME: This is our non-TLV code
+    if typename.endswith('_tlvs'):
+        return len(bytestream) - offset, bytestream[offset:]
+
+    if typename in Subtype.objs:
+        subtype = Subtype.objs[typename]
+        return subtype.unpack(bytestream, offset)
 
     # Unpack directly as bytes
     size = name2size[typename]
@@ -293,6 +308,9 @@ class Field(object):
                                     "{} byte array should be length {} not {}"
                                     .format(self.name, self.arraylen, len(v)))
                 return v, len(v)
+            elif self.typename in Subtype.objs:  # Subtypes
+                subtype = Subtype.objs[self.typename]
+                return subtype.parse(line, value)
             else:
                 arr = []
                 # Empty string doesn't quite do what we want with split.
@@ -368,6 +386,193 @@ def find_message(messages, name):
 
     return None
 
+class Subtype(Message):
+    objs = {}
+
+    def __init__(self, name):
+        Message.__init__(self, name, '0')
+
+    def parse(self, line, s):
+        """ Given an input line for a subtype, parse it into a dict
+            of fields for that subtype """
+        if len(s) == 0:
+            return b'', 0
+
+        if s[0] == '[':
+            i = 1
+            arr = []
+            while i < len(s) and s[i] != ']':
+                end, obj = self._parse_obj(line, s[i:])
+                arr.append(obj)
+                i += end
+                if i < len(s) and s[i] == ',':
+                    i += 1
+            return arr, len(arr)
+        else:
+            _, obj = self.parse_obj(line, s)
+            return obj, None
+
+    def _parse_obj(self, line, s):
+        if s[0] != '{':
+            raise LineError(line, "Subtype formatted incorrectly. got {} when expecting an open bracket ({},{})"
+                            .format(s[0], self.name, s))
+
+        end, fields = self.find_fields(s)
+        if end < 0:
+            raise LineError(line, "Subtype formatted incorrectly. No end bracket found ({}, {})"
+                            .format(self.name, s))
+
+        val = {}
+        for f_name, f_val in fields:
+            sub_field = self.findField(f_name)
+
+            if not sub_field:
+                raise LineError(line, "{} subtype error. Unable to find field {}"
+                                .format(self.name, f_name))
+
+            val[f_name], vararrlen = sub_field.field_value(line, f_val)
+            if vararrlen is not None:
+                val[sub_field.arrayvar.name] = vararrlen
+
+        return end + 1, val
+
+    def find_fields(self, s):
+        """ Handle nested arrays + objects. Returns set of fields for
+            the upper most object and the 'end' count of where this object ends.
+            {abc=[{},{}],bcd=[{},{}],...],abc=[]},{abc=[{},{}]}... """
+        arr_count = 0
+        bracket_count = 0
+        end = len(s)
+        field_set = []
+        i = 0
+        field = ''
+        tok = None
+        while i < end:
+            if s[i] == '[':
+                arr_count += 1
+                field += s[i]
+            elif s[i] == ']':
+                arr_count -= 1
+                field += s[i]
+            elif s[i] == '{':
+                bracket_count += 1
+                if i != 0:
+                    field += s[i]
+            elif s[i] == '}':
+                bracket_count -= 1
+                if bracket_count == 0:
+                    field_set.append((tok, field))
+                    return i, field_set
+                else:
+                    field += s[i]
+            elif s[i] == ',':
+                if bracket_count == 1 and arr_count == 0:
+                    field_set.append((tok, field))
+                    field = ''
+                    tok = None
+                else:
+                    field += s[i]
+            elif s[i] == '=':
+                if not tok:
+                    tok = field
+                    field = ''
+                else:
+                    field += s[i]
+            else:
+                field += s[i]
+
+            i += 1
+        return -1, None
+
+
+    def pack(self, values):
+        """ We need to return bytes for each field """
+        bites = bytes([])
+        for f in self.fields:
+            if f.name in values:
+                val = values[f.name]
+                if f.arrayvar or f.arraylen:
+                    for a in val:
+                        bites += pack(f.typename, a)
+                else:
+                    bites += pack(f.typename, val)
+        return bites
+
+    def unpack(self, bytestream, offset):
+        """ For every field, unpack it"""
+        net_size = 0
+        result = {}
+        lenfields = {}
+        for f in self.fields:
+            off, v = unpack_field(f, lenfields, bytestream, offset)
+            offset += off
+            net_size += off
+            result[f.name] = v
+
+        return net_size, result
+
+    def compare(self, msgname, vals, expected):
+        if not bool(expected):
+            if bool(vals):
+                return ("Nothing expected for {}.{} but returned {}"
+                        .format(msgname, self.name, vals))
+            return None
+        for name, exp_val in expected.items():
+            if name not in vals:
+                return ("Expected field {}.{}.{} "
+                        "not present in values"
+                        .format(msgname, self.name, name))
+
+            f = self.findField(name)
+            if not f:
+                return ("Field {} is not known for subtype {}({})"
+                       .format(name, self.name, msgname))
+
+            val = vals[name]
+            err = compare_results(msgname + "." + self.name, f, v, exp_val)
+            if err is not None:
+                return err
+
+        return None
+
+
+def unpack_field(field, lenfields, bytestream, offset):
+    # If it's an array, we need the whole thing.
+    if field.arrayvar or field.arraylen:
+        if field.arrayvar:
+            num = lenfields[field.arrayvar.name]
+        else:
+            num = field.arraylen
+        # Array of bytes is special: treat raw.
+        if field.typename == 'byte':
+            v = bytestream[offset:offset + num]
+            offset += num
+        else:
+            v = []
+            for i in range(0, num):
+                size, var = unpack_from(field.typename, bytestream, offset)
+                if size is None:
+                    return ('Response too short to extract {}[{}]: {}'
+                            .format(field.name, i, bytestream.hex()))
+                offset += size
+                v += [var]
+    else:
+        size, v = unpack_from(field.typename, bytestream, offset)
+        if size is None:
+            # Optional fields might not exist
+            if field.options != []:
+                v = None
+                size = 0
+            else:
+                return ('Response too short to extract {}: {}'
+                        .format(field.name, bytestream.hex()))
+        offset += size
+
+    # If it's used as a length, save it.
+    if field.islenvar:
+        lenfields[field.name] = int(v)
+
+    return offset, v
 
 def read_csv(args):
     for line in fileinput.input(args.csv_file):
@@ -379,11 +584,19 @@ def read_csv(args):
         elif parts[0] == 'msgdata':
             m = find_message(messages, parts[1])
             if m is None:
-                raise ValueError('Unknown message {}'.format(parts[0]))
+                raise ValueError('Unknown message {}'.format(parts[1]))
 
             # eg. msgdata,channel_reestablish,your_last_per_commitment_secret
             #     ,secret,,1option209
             m.addField(Field(m, parts[2], parts[3], parts[4], parts[5:]))
+        elif parts[0] == 'subtype':
+            Subtype.objs[parts[1]] = Subtype(parts[1])
+        elif parts[0] == 'subtypedata':
+            if parts[1] not in Subtype.objs:
+                raise ValueError('Unknown subtype {}'.format(parts[1]))
+            # Insert fields into dict for subtype
+            subtype = Subtype.objs[parts[1]]
+            subtype.addField(Field(subtype, parts[2], parts[3], parts[4], parts[5:]))
 
 
 def parse_params(line, parts, compulsorykeys, optionalkeys=[]):
@@ -446,7 +659,7 @@ def which_connection(line, runner, connkey):
             return c
     raise LineError(line, "No active 'connect' {}".format(connkey))
 
-    
+
 class NothingEvent(object):
     def __init__(self, line, parts):
         parse_params(line, parts, [])
@@ -548,6 +761,53 @@ class RecvEvent(object):
         runner.recv(which_connection(line, runner, self.connkey),
                     self.b, line)
 
+def compare_results(msgname, f, v, exp):
+    """ f -> field; v -> value; exp -> expected value """
+
+    # If they specify field=absent, it must not be there.
+    if exp is None:
+        if v is not None:
+            return "Field {} is present"
+        else:
+            return None
+
+    if v is None:
+        return ("Optional field {} is not present"
+                .format(f.name))
+    if isinstance(exp, tuple):
+        # Out-of-range bitmaps are considered 0 (eg. feature tests)
+        if len(v) < len(exp[0]):
+            cmpv = b'\x00' * (len(exp[0]) - len(v)) + v
+        elif len(v) > len(exp[0]):
+            cmpv = v[-len(exp[0]):]
+        else:
+            cmpv = v
+
+        for i in range(0, len(exp[0])):
+            if cmpv[i] & exp[1][i] != exp[0][i]:
+                return ("Expected {}.{} mask 0x{}"
+                        " value 0x{} but got 0x{}"
+                        " (offset {} different)"
+                        .format(msgname, f.name,
+                                exp[1].hex(), exp[0].hex(),
+                                v.hex(), len(exp[0]) - 1 - i))
+    # Use subtype comparer
+    elif f.typename in Subtype.objs:
+        return Subtype.objs[f.typename].compare(msgname, v, exp)
+
+    # Simple comparison
+    elif v != exp:
+        if f.isinteger:
+            valstr = str(v)
+            expectstr = str(exp)
+        else:
+            valstr = v.hex()
+            expectstr = exp.hex()
+        return ("Expected {}.{} {} but got {}"
+                .format(msgname,
+                        f.name, expectstr, valstr))
+    return None
+
 
 def message_match(expectmsg, expectfields, b):
     """Internal helper to see if b matches expectmsg & expectfields.
@@ -556,91 +816,21 @@ def message_match(expectmsg, expectfields, b):
     msgtype = struct.unpack_from(">H", b)[0]
     off = 2
 
-    # Keep length fields
-    lenfields = {}
     if msgtype != expectmsg.value:
         return "Expected msg {} but got {}: {}".format(expectmsg.name,
                                                        msgtype, b.hex())
+    # Keep length fields
+    lenfields = {}
     for f in expectmsg.fields:
-        # If it's an array, we need the whole thing.
-        if f.arrayvar or f.arraylen:
-            if f.arrayvar:
-                num = lenfields[f.arrayvar.name]
-            else:
-                num = f.arraylen
-            # Array of bytes is special: treat raw.
-            if f.typename == 'byte':
-                v = b[off:off + num]
-                off += num
-            else:
-                v = []
-                for i in range(0, num):
-                    size, var = unpack_from(f.typename, b, off)
-                    if size is None:
-                        return ('Response too short to extract {}[{}]: {}'
-                                .format(f.name, i, b.hex()))
-                    off += size
-                    v += [var]
-        else:
-            size, v = unpack_from(f.typename, b, off)
-            if size is None:
-                # Optional fields might not exist
-                if f.options != []:
-                    v = None
-                    size = 0
-                else:
-                    return ('Response too short to extract {}: {}'
-                            .format(f.name, b.hex()))
-            off += size
-
-        # If it's used as a length, save it.
-        if f.islenvar:
-            lenfields[f.name] = int(v)
+        off, v = unpack_field(f, lenfields, b, off)
 
         # They expect a value from this.
         if f.name in expectfields:
             exp = expectfields[f.name]
+            err = compare_results(expectmsg.name, f, v, exp)
+            if err is not None:
+                return err + ": {}".format(b.hex())
 
-            # If they specify field=absent, it must not be there.
-            if exp is None:
-                if v is not None:
-                    return "Field {} is present"
-                else:
-                    continue
-
-            if v is None:
-                return ("Optional field {} is not present in {}"
-                        .format(f.name, b.hex()))
-            if isinstance(exp, tuple):
-                # Out-of-range bitmaps are considered 0 (eg. feature tests)
-                if len(v) < len(exp[0]):
-                    cmpv = b'\x00' * (len(exp[0]) - len(v)) + v
-                elif len(v) > len(exp[0]):
-                    cmpv = v[-len(exp[0]):]
-                else:
-                    cmpv = v
-
-                for i in range(0, len(exp[0])):
-                    if cmpv[i] & exp[1][i] != exp[0][i]:
-                        return ("Expected {}.{} mask 0x{}"
-                                " value 0x{} but got 0x{}"
-                                " (offset {} different):"
-                                " {}"
-                                .format(expectmsg.name, f.name,
-                                        exp[1].hex(), exp[0].hex(),
-                                        v.hex(), len(exp[0]) - 1 - i,
-                                        b.hex()))
-            # Simple comparison
-            elif v != exp:
-                if f.isinteger:
-                    valstr = str(v)
-                    expectstr = str(exp)
-                else:
-                    valstr = v.hex()
-                    expectstr = exp.hex()
-                return ("Expected {}.{} {} but got {}: {}"
-                        .format(expectmsg.name,
-                                f.name, expectstr, valstr, b.hex()))
     return None
 
 
@@ -726,7 +916,7 @@ class ExpectSendEvent(object):
                 msg = runner.expect_send(conn, line)
             else:
                 break
-                
+
         if conn.maybe_sends != []:
             raise ValidationError(line,
                                   failreason
@@ -897,7 +1087,7 @@ class Sequence(object):
 
     def __repr__(self):
         return "Sequence:{}".format(self)
-    
+
     def run(self, runner, start=0):
         if self.args.verbose:
             print("# running {}:".format(self))
@@ -978,7 +1168,7 @@ def load_sequence(args, lines, linenum, indentlevel, graph):
 
     seq = init_seq
     terminals = [seq]
-    
+
     if graph is not None:
         graph.add_node(seq)
 
