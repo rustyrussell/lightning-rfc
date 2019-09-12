@@ -492,13 +492,13 @@ is to be rotated after a party encrypts or decrypts 1000 times with it (i.e. eve
 This can be properly accounted for by rotating the key once the nonce dedicated
 to it exceeds 1000.
 
-Key rotation for a key `k` is performed according to the following steps:
+Key rotation for a key `k` is performed according to the following steps.
+`ck` is the chaining key, initially obtained at the end of Act Three.
 
-1. Let `ck` be the chaining key obtained at the end of Act Three.
-2. `ck', k' = HKDF(ck, k)`
-3. Reset the nonce for the key to `n = 0`.
-4. `k = k'`
-5. `ck = ck'`
+1. `ck', k' = HKDF(ck, k)`
+2. Reset the nonce for the key to `n = 0`.
+3. `k = k'`
+4. `ck = ck'`
 
 # Security Considerations
 
