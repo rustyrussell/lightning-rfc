@@ -1159,11 +1159,23 @@ The writer:
 - SHOULD set `len` to 1366 or 32834.
 
 The reader:
+- MUST ignore any message which contains a `blinding` which it did not expect, or does not contain
+  a `blinding` when one is expected.
 - MUST handle the per-hop payloads as described in [BOLT 4](04-onion-routing.md#onion-messages).
 - SHOULD accept onion messages from peers without an established channel.
 - MAY rate-limit messages by dropping them.
 
 ## Rationale
+
+`blinding` is critical to the use of blinded paths: there are various
+means by which a blinded path is passed to a node.  The receipt of an
+expected `blinding` indicates that blinded path has been used: it is
+important that a node not accept unblinded messages when it is expecting
+a blinded message, as this implies the sender is probing to detect if
+the recipient is the terminus of the blinded path.
+
+Similarly, since blinded paths don't expire, a node could try to use
+a blinded path to send an unexpected message hoping for a response.
 
 `len` allows larger messages to be sent than the standard 1300 bytes
 allowed for an HTLC onion, but this should be used sparingly as it is
