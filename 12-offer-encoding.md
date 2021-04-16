@@ -20,9 +20,9 @@ limitations:
    in other forms (i.e. inside the lightning network itself).
 2. The signature applying to the entire invoice makes it impossible
    to prove an invoice without revealing its entirety.
-3. Fields are not generally extractable for external use: the `h`
+3. Fields cannot generally be extracted for external use: the `h`
    field was a boutique extraction of the `d` field, only.
-4. The lack of 'it's ok to be odd' rule makes backwards compatibility
+4. The lack of 'it's OK to be odd' rule makes backwards compatibility
    harder.
 5. The 'human-readable' idea of separating amounts proved fraught:
    `p` was often mishandled, and amounts in pico-bitcoin are harder
@@ -52,7 +52,7 @@ The general user-pays-merchant flow is:
 4. The user makes a payment to the merchant indicated by the invoice.
 
 The merchant-pays-user flow (e.g. ATM or refund):
-1. The merchant provides a user-specific *offer* ("take my money") in a webpage or QR code,
+1. The merchant provides a user-specific *offer* ("take my money") in a web page or QR code,
    with an amount (for a refund, also a reference to the to-be-refunded
    invoice).
 2. A user sends an *invoice* for the amount in the *offer* (for a
@@ -69,11 +69,11 @@ claim they paid the invoice, too.[1]
 1. Sharing the minimum information required to prove sections of the
    invoice in dispute (e.g. the description of the item, the payment
    hash, and the merchant's signature).
-2. Contain a transferrable proof that the user is the one who was
+2. Contain a transferable proof that the user is the one who was
    responsible for paying the invoice in the first place.
 
 Providing a key in *invoice_request* allows a user to prove that they were the one
-to request the invoice.  In addition, the merkle construction of the BOLT 12
+to request the invoice.  In addition, the Merkle construction of the BOLT 12
 invoice signature allows the user to selectively reveal fields of the invoice
 in case of dispute.
 
@@ -123,16 +123,16 @@ here is `SIG(tag,msg,key)`.
 Each form is signed using one or more TLV signature elements; TLV
 types 240 through 1000 are considered signature elements.  For these
 the tag is `lightning` | `messagename` | `fieldname`, and `msg` is the
-merkle-root; `lightning` is the literal 9-byte ASCII string,
+Merkle-root; `lightning` is the literal 9-byte ASCII string,
 `messagename` is the name of the TLV stream being signed (i.e. `offer`
 or `invoice`) and the `fieldname` is the TLV field containing the
 signature (e.g. `signature` or `recurrence_signature`).
 
-The formulation of the merkle tree is similar to that proposed in
+The formulation of the Merkle tree is similar to that proposed in
 [BIP-taproot], with the insertion of alternate "dummy" leaves to avoid
 revealing adjacent nodes in proofs.
 
-The Merkle Tree's leaves are, in TLV-ascending order:
+The Merkle tree's leaves are, in TLV-ascending order:
 1. The SHA256 of: `LnLeaf` followed by the TLV entry.
 2. The SHA256 of: `LnAll` followed all non-signature TLV entries appended in ascending order.
 
@@ -177,7 +177,7 @@ Signature = SIG('lightningoffersignature', Root, nodekey)
 
 ## Rationale
 
-FIXME: some taproot, some about obscuring leaves in merkle proofs.
+FIXME: some taproot, some about obscuring leaves in Merkle proofs.
 
 # Offers
 
@@ -364,7 +364,7 @@ of USD$3.71.  If it was, it would simply pay the invoice without user
 interaction.
 
 On the other hand, if an invoice did exceed the authorization, it
-would request reauthorization.  It could also indicate whether it was
+would request re-authorization.  It could also indicate whether it was
 due to AUD/USD changes (since the offer indicated that was the
 currency it was using) or a disagreement on the bitcoin exchange rate.
 
@@ -539,7 +539,7 @@ invoices is `lnr`.
 The writer of an invoice_request:
   - MUST set `payer_key` to a transient public key.
   - MUST remember the secret key corresponding to `payer_key`.
-  - MUST set `offer_id` to the merkle root of the offer as described in [Signature Calculation](#signature-calculation).
+  - MUST set `offer_id` to the Merkle root of the offer as described in [Signature Calculation](#signature-calculation).
   - MUST NOT set or imply any `chain_hash` not set or implied by the offer.
   - if the offer had a `quantity_min` or `quantity_max` field:
     - MUST set `quantity`
@@ -609,7 +609,7 @@ The reader of an invoice_request:
       - MUST use the request's `amount` as the *base invoice amount*.
   - otherwise:
     - MUST fail the request if it does not contain `amount`.
-    - MUST use the request `amount` as the *base invoice amount*. (Note: invoice amount can be further modiifed by recurrence below)
+    - MUST use the request `amount` as the *base invoice amount*. (Note: invoice amount can be further modified by recurrence below)
   - if the offer had a `recurrence`:
     - MUST fail the request if there is no `recurrence_counter` field.
     - MUST fail the request if there is no `recurrence_signature` field.
@@ -921,7 +921,7 @@ The invoice duplicates fields rather than committing to the previous offer or
 invoice_request.  This flattened format simplifies storage at some space cost, as
 the payer need only remember the invoice for any refunds or proof.
 
-The recurrence_basetime similarly enables calculation of the next period
+The `recurrence_basetime` similarly enables calculation of the next period
 without having to refer to the initial invoice (in the case where the
 offer does not contain `recurrence_base`.
 
@@ -987,9 +987,9 @@ sender can send a new invoice.
 
 # FIXME: Possible future extensions:
 
-1. The offer can require delivery info in the invreq.
-2. An offer can be updated: the response to an invreq is another offer,
-   perhaps with a signature from the original node_id
+1. The offer can require delivery info in the `invoice_request`.
+2. An offer can be updated: the response to an `invoice_request` is another offer,
+   perhaps with a signature from the original `node_id`
 3. Any empty TLV fields can mean the value is supposed to be known by
    other means (i.e. transport-specific), but is still hashed for sig.
 4. We could upgrade to allow multiple offers in one invoice_request and
