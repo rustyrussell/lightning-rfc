@@ -246,6 +246,9 @@ The human-readable prefix for offers is `lno`.
     1. type: 34 (`refund_for`)
     2. data:
         * [`sha256`:`refunded_payment_hash`]
+    1. type: 58 (`req_delivery_info`)
+    2. data:
+        * [`tu64`:`req_info_typeset`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -466,6 +469,8 @@ A writer of an offer:
         invoice.
   - otherwise:
     - MUST NOT set `refunded_payment_hash`.
+  - if `req_delivery_info` is present:
+    - `invoice_request` MUST include data for the required delivery info.
 
 A reader of an offer:
   - if `features` contains unknown _odd_ bits that are non-zero:
@@ -493,6 +498,19 @@ A reader of an offer:
 It's quite reasonable to set a `recurrence_paywindow` with seconds_after
 equal to 0, but obviously this should not apply to the initial period if
 there is no recurrence_base.
+
+The following `req_delivery_info` types are specified, and map to the
+given types in the `invoice_request`
+
+| Bit Position  | Invoice Request TLV Type No.  | Field                    |
+| ------------- | ----------------------------- | ------------------------ |
+| 0             | 70                            | Email                    |
+| 1             | 72                            | Postal Address           |
+| 2             | 74                            | Phone Number             |
+| 3             | 76                            | Node Id                  |
+| 4             | 78                            | Bitcoin address          |
+| 5             | 80                            | SHA256 Hash              |
+| 6             | 82                            | Proprietary/Unstructured |
 
 # Invoice Requests
 
@@ -533,6 +551,30 @@ invoices is `lnr`.
     1. type: 56 (`replace_invoice`)
     2. data:
         * [`sha256`:`payment_hash`]
+    1. type: 70 (`delivery_info_email`)
+    2. data:
+        * [`...*byte`:`blob`]
+    1. type: 72 (`delivery_info_postal`)
+    2. data:
+        * [`...*byte`:`blob`]
+    1. type: 74 (`delivery_info_phone`)
+    2. data:
+        * [`...*byte`:`blob`]
+    1. type: 76 (`delivery_info_node`)
+    2. data:
+        * [`node_id`:`node_id`]
+    1. type: 78 (`delivery_info_addr`)
+    2. data:
+        * [`...*byte`:`blob`]
+    1. type: 80 (`delivery_info_sha256`)
+    2. data:
+        * [`sha256`:`hash`]
+    1. type: 82 (`delivery_info_prop`)
+    2. data:
+        * [`...*byte`:`blob`]
+    2. data:
+        * [`u64`:`type`]
+        * [`...*byte`:`blob`]
     1. type: 242 (`payer_signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -590,6 +632,20 @@ The writer of an invoice_request:
   - otherwise:
     - MUST NOT set `recurrence_counter`.
     - MUST NOT set `recurrence_start`
+  - if `offer` signaled bit position 0 in `req_delivery_info`:
+    - MUST set `delivery_info_email` with a valid email address.
+  - if `offer` signaled bit position 1 in `req_delivery_info`:
+    - MUST set `delivery_info_postal` with a postal address.
+  - if `offer` signaled bit position 2 in `req_delivery_info`:
+    - MUST set `delivery_info_phone` with a phone number.
+  - if `offer` signaled bit position 3 in `req_delivery_info`:
+    - MUST set `delivery_info_node` with a valid node id.
+  - if `offer` signaled bit position 4 in `req_delivery_info`:
+    - MUST set `delivery_info_addr` with a valid Bitcoin address.
+  - if `offer` signaled bit position 5 in `req_delivery_info`:
+    - MUST set `delivery_info_sha256` with a sha256.
+  - if `offer` signaled bit position 6 in `req_delivery_info`:
+    - MUST set `delivery_info_prop` with the requested data.
 
 The reader of an invoice_request:
   - MUST fail the request if `payer_key` is not present.
@@ -652,6 +708,10 @@ The reader of an invoice_request:
             of the previous period.
   - otherwise (the offer had no `recurrence`):
     - MUST fail the request if there is a `recurrence_counter` field.
+  - MUST fail the request if any `req_delivery_info` fields are not present
+    or are present but invalid.
+  - SHOULD include any provided `req_delivery_info` in the resulting `invoice`
+    `description`.
 
 ## Rationale
 
@@ -1006,7 +1066,7 @@ sender can send a new invoice.
 
 # FIXME: Possible future extensions:
 
-1. The offer can require delivery info in the `invoice_request`.
+1. ~The offer can require delivery info in the `invoice_request`.~
 2. An offer can be updated: the response to an `invoice_request` is another offer,
    perhaps with a signature from the original `node_id`
 3. Any empty TLV fields can mean the value is supposed to be known by
