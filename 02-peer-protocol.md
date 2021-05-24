@@ -26,6 +26,7 @@ operation, and closing.
       * [Completing the Transition to the Updated State: `revoke_and_ack`](#completing-the-transition-to-the-updated-state-revoke_and_ack)
       * [Updating Fees: `update_fee`](#updating-fees-update_fee)
     * [Message Retransmission: `channel_reestablish` message](#message-retransmission)
+      * [Upgrading Channels](#upgrading-channels)
   * [Authors](#authors)
 
 # Channel
@@ -1243,21 +1244,29 @@ messages are), they are independent of requirements here.
     1. type: 1 (`next_to_send`)
     2. data:
         * [`tu64`:`commitment_number`]
-    1. type: 3 (`desired_features`)
+    1. type: 3 (`desired_type`)
     2. data:
-        * [`...*byte`:`features`]
-    1. type: 5 (`current_features`)
+        * [`channel_type`:`type`]
+    1. type: 5 (`current_type`)
     2. data:
-        * [`...*byte`:`features`]
-    1. type: 7 (`upgradable_features`)
+        * [`channel_type`:`type`]
+    1. type: 7 (`upgradable`)
     2. data:
-        * [`...*byte`:`features`]
+        * [`...*channel_type`:`upgrades`]
+
+1. subtype: `channel_type`
+2. data:
+    * [`u16`:`len`]
+    * [`len*byte`:`features`]
 
 `next_commitment_number`: A commitment number is a 48-bit
 incrementing counter for each commitment transaction; counters
 are independent for each peer in the channel and start at 0.
 They're only explicitly relayed to the other node in the case of
 re-establishment, otherwise they are implicit.
+
+See [Upgrading Channels](#upgrading-channels) for the requirements
+of some of the optional fields.
 
 ### Requirements
 
@@ -1473,29 +1482,23 @@ channel upgraded and the other not.  But this will eventually be
 resolved: the channel cannot progress until both sides have received
 `channel_reestablish` anyway.
 
-Channel features are currently defined as:
-  - `option_static_remotekey`
-  - `option_anchor_outputs`
+Channel features are explicitly enumerated as `channel_type`
+bitfields, using odd features bits.  The currently defined types are:
+  - no features (no bits set)
+  - `option_static_remotekey` (bit 13)
+  - `option_anchor_outputs` and `option_static_remotekey` (bits 21 and 13)
+  - `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 23 and 13)
 
 #### Requirements
-
-A node writing a `features` field:
-  - MUST set features using odd bits if an upgrade is optional.
-  - Otherwise, MUST close the connection (and MAY fail the channel) if the upgrade fails.
-  - MUST NOT set dependent features for any feature, unless that feature is also upgradable separately.
-
-A node reading a `features` field:
-  - SHOULD close the connection if there is an even bit it does not understand.
-  - Otherwise, SHOULD treat odd and even bits the same.
 
 A node sending `channel_reestablish`, if it supports upgrading channels:
   - MUST set `next_to_send` the commitment number of the next `commitment_signed` it expects to send.
   - if it initiated the channel:
-    - MUST set `desired_features` to the features it wants for the channel.
-    - MUST set `desired_features` equal to or an upgrade from the current channel features.
+    - MUST set `desired_type` to the channel_type it wants for the channel.
   - otherwise:
-    - MUST set `current_features` to the features which could be upgraded for the channel.
-    - MUST set `upgradable_features` to the features which could be upgraded for the channel.
+    - MUST set `current_type` to the current channel_type of the channel.
+    - MUST set `upgradable` to the channel types it could change to.
+    - MAY not set `upgradable` if it would be empty.
 
 A node receiving `channel_reestablish`:
   - if it has to retransmit `commitment_signed` or `revoke_and_ack`:
@@ -1505,10 +1508,12 @@ A node receiving `channel_reestablish`:
   - if updates are pending on either sides' commitment transaction:
     - MUST consider the channel feature change failed.
   - otherwise:
-    - if `desired_features` is a valid combination of `current_features`, either modified or not by `upgradable_features`:
-      - MUST consider the channel features to be `desired_features`.
-    - otherwise (including if there is no `current_features` or `upgradable_features`:
+    - if `desired_type` matches `current_type` or any `upgradable` `upgrades`:
+      - MUST consider the channel type to be `desired_type`.
+    - otherwise:
       - MUST consider the channel feature change failed.
+      - if there is a `current_type` field:
+        - MUST consider the channel type to be `current_type`.
 
 #### Rationale
 
@@ -1516,11 +1521,6 @@ The new `next_to_send` counter is needed to indicate that the peer
 sent a new set of updates and `commitment_signed` which we didn't see
 before disconnection (i.e. retransmissions are incoming).  Existing logic
 already tells us if we need to send retransmissions.
-
-A node may decide only to offer `option_anchor_outputs` as an upgrade,
-without supporting `option_static_remotekey` alone, even though
-`option_anchor_outputs` implies it.  This why dependent features are
-not flagged explicitly.
 
 If reconnection is aborted, there are four possibilities: both side
 receive the `channel_reestablish` and are upgraded, neither side
@@ -1530,20 +1530,19 @@ this is fine as long as it is resolved before any channel operations
 are attempted (all of which require successful exchange of
 `channel_reestablish` messages).
 
-If only the initiator is upgraded, it will reflect this upgrade in the
-next `desired_features`, causing the non-initiator to upgrade.  If
-only the non-initiator is upgraded, it will be reflected in
-`current_features` and the combination of `current_features` and
-`upgradable_features` will match `desired_features` and the initiator
-will consider itself upgraded.
+On reconnect, if only the initiator is upgraded, it will reflect this
+upgrade in the next `desired_type`, causing the non-initiator to
+upgrade.  If only the non-initiator is upgraded, it will be reflected
+in `current_type` and the initiator will consider itself upgraded.
 
-There are, however, theoretical cases where a second upgrade is
-attempted immediately following (i.e. the non-initiator doesn't even
-think the first one occurred), or incompatible upgrades are attempted,
-which could cause desynchronization on these cases.  This could be
-avoided after the first upgrade by the sending an `update_fee` at the
-current feerate followed by a `commitment_signed`, which has the
-effect of forcing synchronization.
+There can be desynchronization across multiple upgrades.  Both nodes
+start on channel_type A, initiator sets `desired_type` B, receives
+`channel_reestablish` from A which has B in `upgradable`, but B
+doesn't receive `channel_reestablish`.  On reconnect, initiator tries
+to upgrade again, setting `desired_type` to C, which is not in B's
+`upgradable` so fails.  This is why, on such a failed upgrade, the
+initiator considers the `current_type` given by the non-initiator to
+be canonical.
 
 # Authors
 
