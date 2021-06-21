@@ -130,6 +130,15 @@ the funding transaction and both versions of the commitment transaction.
     1. type: 0 (`upfront_shutdown_script`)
     2. data:
         * [`...*byte`:`shutdown_scriptpubkey`]
+    1. type: 1 (`channel_types`)
+    2. data:
+        * [`...*channel_type`:`types`]
+
+1. subtype: `channel_type`
+2. data:
+    * [`u16`:`len`]
+    * [`len*byte`:`features`]
+ 
 
 The `chain_hash` value denotes the exact blockchain that the opened channel will
 reside within. This is usually the genesis hash of the respective blockchain.
@@ -197,6 +206,13 @@ know this node will accept `funding_satoshis` greater than or equal to 2^24.
 Since it's broadcast in the `node_announcement` message other nodes can use it to identify peers 
 willing to accept large channel even before exchanging the `init` message with them. 
 
+Channel features are explicitly enumerated as `channel_type`
+bitfields, using odd features bits.  The currently defined types are:
+  - no features (no bits set)
+  - `option_static_remotekey` (bit 13)
+  - `option_anchor_outputs` and `option_static_remotekey` (bits 21 and 13)
+  - `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 23 and 13)
+
 #### Requirements
 
 The sending node:
@@ -217,6 +233,9 @@ The sending node:
     - MAY include `upfront_shutdown_script`.
   - if it includes `open_channel_tlvs`:
     - MUST include `upfront_shutdown_script`.
+  - if it includes `channel_types`:
+    - MUST include at least one `channel_type`
+    - MUST order them from most preferred to least preferred
 
 The sending node SHOULD:
   - set `to_self_delay` sufficient to ensure the sender can irreversibly spend a commitment transaction output, in case of misbehavior by the receiver.
@@ -252,6 +271,7 @@ are not valid secp256k1 pubkeys in compressed format.
   - the funder's amount for the initial commitment transaction is not sufficient for full [fee payment](03-transactions.md#fee-payment).
   - both `to_local` and `to_remote` amounts for the initial commitment transaction are less than or equal to `channel_reserve_satoshis` (see [BOLT 3](03-transactions.md#commitment-transaction-outputs)).
   - `funding_satoshis` is greater than or equal to 2^24 and the receiver does not support `option_support_large_channel`. 
+  - It supports `channel_types` and none of the `channel_types` are suitable.
 
 The receiving node MUST NOT:
   - consider funds received, using `push_msat`, to be received until the funding transaction has reached sufficient depth.
@@ -305,6 +325,9 @@ funding transaction and both versions of the commitment transaction.
     1. type: 0 (`upfront_shutdown_script`)
     2. data:
         * [`...*byte`:`shutdown_scriptpubkey`]
+    1. type: 1 (`channel_type`)
+    2. data:
+        * [`channel_type`:`type`]
 
 #### Requirements
 
@@ -316,14 +339,21 @@ The sender:
 avoid double-spending of the funding transaction.
   - MUST set `channel_reserve_satoshis` greater than or equal to `dust_limit_satoshis` from the `open_channel` message.
   - MUST set `dust_limit_satoshis` less than or equal to `channel_reserve_satoshis` from the `open_channel` message.
+  - if it sets `channel_type`:
+    - MUST set it to one of the `channel_types` from `open_channel`
+    - SHOULD set it to its preferred `channel_type`, or the first in `channel_types` if there is more than one equal preference.
 
 The receiver:
   - if `minimum_depth` is unreasonably large:
     - MAY reject the channel.
   - if `channel_reserve_satoshis` is less than `dust_limit_satoshis` within the `open_channel` message:
-	- MUST reject the channel.
+    - MUST reject the channel.
   - if `channel_reserve_satoshis` from the `open_channel` message is less than `dust_limit_satoshis`:
-	- MUST reject the channel.
+    - MUST reject the channel.
+  - if `channel_type` is not one of the `channel_types` from `open_channel`:
+    - MUST reject the channel.
+
+
 Other fields have the same requirements as their counterparts in `open_channel`.
 
 ### The `funding_created` Message
@@ -382,10 +412,18 @@ This message introduces the `channel_id` to identify the channel. It's derived f
 #### Requirements
 
 Both peers:
-  - if `option_static_remotekey` or `option_anchor_outputs` was negotiated:
-    - `option_static_remotekey` or `option_anchor_outputs` applies to all commitment transactions
+  - if `channel_types` (in `open_channel`) and `channel_type` (in `accept_channel`) were sent:
+    - the `channel_type` is taken from `accept_channel`.
   - otherwise:
-    - `option_static_remotekey` or `option_anchor_outputs` does not apply to any commitment transactions
+    - if `option_anchors_zero_fee_htlc_tx` was negotiated:
+      - the `channel_type` is `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 23 and 13)
+    - otherwise, if `option_anchor_outputs` was negotiated:
+      - the `channel_type` is `option_anchor_outputs` and `option_static_remotekey` (bits 21 and 13)
+    - otherwise, if `option_static_remotekey` was negotiated:
+      - the `channel_type` is `option_static_remotekey` (bit 13)
+    - otherwise:
+      - the `channel_type` is empty
+  - MUST use that `channel_type` for all commitment transactions.
 
 The sender MUST set:
   - `channel_id` by exclusive-OR of the `funding_txid` and the `funding_output_index` from the `funding_created` message.
@@ -490,7 +528,7 @@ A sending node:
     - MUST NOT send a `shutdown`.
   - MUST NOT send an `update_add_htlc` after a `shutdown`.
   - if no HTLCs remain in either commitment transaction:
-	- MUST NOT send any `update` message after a `shutdown`.
+    - MUST NOT send any `update` message after a `shutdown`.
   - SHOULD fail to route any HTLC added after it has sent `shutdown`.
   - if it sent a non-zero-length `shutdown_scriptpubkey` in `open_channel` or `accept_channel`:
     - MUST send the same value in `scriptpubkey`.
@@ -503,7 +541,7 @@ A sending node:
     4. `OP_0` `32` 32-bytes (version 0 pay to witness script hash), OR
     5. if (and only if) `option_shutdown_anysegwit` is negotiated:
       * `OP_1` through `OP_16` inclusive, followed by a single push of 2 to 40 bytes
-	    (witness program versions 1 through 16)
+        (witness program versions 1 through 16)
 
 A receiving node:
   - if it hasn't received a `funding_signed` (if it is a funder) or a `funding_created` (if it is a fundee):
