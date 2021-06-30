@@ -97,8 +97,9 @@ Readers of a bolt12 string:
 ## Rationale
 
 The use of bech32 is arbitrary, but already exists in the bitcoin
-world.  We omit the six-character trailing checksum since all uses
-here involve a signature.
+world.  We currently omit the six-character trailing checksum: QR
+codes have their own checksums, bech32 doesn't protect against many
+length differences, and bech32m is not yet widely supported.
 
 The use of `+` (which is ignored) allows use over limited
 text fields like Twitter:
@@ -379,8 +380,8 @@ the reader.
 
 A writer of an offer:
   - MUST set `node_id` to the public key of the node to request the invoice from.
-  - MUST specify exactly one signature TLV: `signature`.
-    - MUST set `sig` to the signature using `node_id` as described in [Signature Calculation](#signature-calculation).
+  - MAY specify exactly one signature TLV: `signature`:
+    - If so, it MUST set `sig` to the signature using `node_id` as described in [Signature Calculation](#signature-calculation).
   - MUST set `description` to a complete description of the purpose
     of the payment.
   - if the chain for the invoice is not solely bitcoin:
@@ -473,11 +474,11 @@ A reader of an offer:
   - if `features` contains unknown _even_ bits that are non-zero:
     - MUST NOT respond to the offer.
     - SHOULD indicate the unknown bit to the user.
-  - if `node_id`, `description` or `signature` is not set:
+  - if `node_id` or `description` is not set:
     - MUST NOT respond to the offer.
   - if `description` is not present:
     - MUST NOT respond to the offer.
-  - if `signature` is not a valid signature using `node_id` as described in [Signature Calculation](#signature-calculation):
+  - if `signature` is present, but is not a valid signature using `node_id` as described in [Signature Calculation](#signature-calculation):
     - MUST NOT respond to the offer.
   - SHOULD gain user consent for recurring payments.
   - SHOULD allow user to view and cancel recurring payments.
@@ -493,6 +494,11 @@ A reader of an offer:
 It's quite reasonable to set a `recurrence_paywindow` with seconds_after
 equal to 0, but obviously this should not apply to the initial period if
 there is no recurrence_base.
+
+A signature is optional, because it makes for a longer string (potentially
+limiting QR code use on low-end cameras); if the offer has an error, no
+invoice will be given (or, for `send_invoice` offers, accepted), since
+the `offer_id` already covers all the non-signature fields.
 
 # Invoice Requests
 
