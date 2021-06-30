@@ -530,7 +530,10 @@ invoices is `lnr`.
     1. type: 50 (`payer_info`)
     2. data:
         * [`...*byte`:`blob`]
-    1. type: 242 (`recurrence_signature`)
+    1. type: 56 (`replace_invoice`)
+    2. data:
+        * [`sha256`:`payment_hash`]
+    1. type: 242 (`payer_signature`)
     2. data:
         * [`bip340sig`:`sig`]
 
@@ -541,6 +544,7 @@ The writer of an invoice_request:
   - MUST remember the secret key corresponding to `payer_key`.
   - MUST set `offer_id` to the Merkle root of the offer as described in [Signature Calculation](#signature-calculation).
   - MUST NOT set or imply any `chain_hash` not set or implied by the offer.
+  - MUST set `payer_signature` `sig` as detailed in [Signature Calculation](#signature-calculation) using the `payer_key`.
   - if the offer had a `quantity_min` or `quantity_max` field:
     - MUST set `quantity`
     - MUST set it within that (inclusive) range.
@@ -554,6 +558,9 @@ The writer of an invoice_request:
     - if it sets `amount`:
       - MUST specify `amount`.`msat` as greater or equal to amount expected by the offer
         (before any proportional period amount).
+  - if the sender has a previous unpaid invoice (for the same offer) which it wants to cancel:
+    - MUST set `payer_key` to the same as the previous invoice.
+    - MUST set `replace_invoice` to the `payment_hash` or the previous invoice.
   - if the offer contained `recurrence`:
     - for the initial request:
       - MUST use a unique `payer_key`.
@@ -568,8 +575,6 @@ The writer of an invoice_request:
     - otherwise:
       - MUST NOT include `recurrence_start`
     - MAY set `payer_info` to arbitrary data to be reflected into the invoice.
-    - MUST set `recurrence_signature` `sig` as detailed in
-      [Signature Calculation](#signature-calculation) using the `payer_key`.
     - if the offer contained `recurrence_limit`:
       - MUST NOT send an `invoice_request` for a period greater than `max_period`
     - SHOULD NOT send an `invoice_request` for a period which has
@@ -584,7 +589,6 @@ The writer of an invoice_request:
         yet begun.
   - otherwise:
     - MUST NOT set `recurrence_counter`.
-    - MUST NOT set `recurrence_signature`.
     - MUST NOT set `recurrence_start`
 
 The reader of an invoice_request:
@@ -593,6 +597,8 @@ The reader of an invoice_request:
   - MUST fail the request if `features` contains unknown even bits.
   - MUST fail the request if `offer_id` is not present.
   - MUST fail the request if the `offer_id` does not refer to an unexpired offer.
+  - MUST fail the request if there is no `payer_signature` field.
+  - MUST fail the request if `payer_signature` is not correct.
   - if the offer had a `quantity_min` or `quantity_max` field:
     - MUST fail the request if there is no `quantity` field.
     - MUST fail the request if there is `quantity` is not within that (inclusive) range.
@@ -610,10 +616,13 @@ The reader of an invoice_request:
   - otherwise:
     - MUST fail the request if it does not contain `amount`.
     - MUST use the request `amount` as the *base invoice amount*. (Note: invoice amount can be further modified by recurrence below)
+  - if the offer has a `replace_invoice`:
+    - if the `payment_hash` refers to an unpaid invoice for the same `offer_id` and `payer_key`:
+      - MUST immediately expire/remove that unpaid invoice such that it cannot be paid in future.
+    - otherwise:
+      - MUST fail the request.
   - if the offer had a `recurrence`:
     - MUST fail the request if there is no `recurrence_counter` field.
-    - MUST fail the request if there is no `recurrence_signature` field.
-    - MUST fail the request if `recurrence_signature` is not correct.
     - if the offer had `recurrence_base` and `start_any_period` was 1:
       - MUST fail the request if there is no `recurrence_start` field.
       - MUST consider the period index for this request to be the
@@ -643,7 +652,6 @@ The reader of an invoice_request:
             of the previous period.
   - otherwise (the offer had no `recurrence`):
     - MUST fail the request if there is a `recurrence_counter` field.
-    - MUST fail the request if there is a `recurrence_signature` field.
 
 ## Rationale
 
@@ -656,8 +664,9 @@ precisely, and if it isn't in the offer the defaults provide some
 slack, without allowing commitments into the far future.
 
 To avoid probing (should a payer_key become public in some way), we
-require a signature for recurring invoice requests; this ensures that
-no third party can determine how many invoices have been paid already.
+require a signature; this ensures that no third party can determine
+how many invoices have been paid already in the case of recurring
+requests, and disallows replacement of old invoices by third parties.
 
 `payer_info` might typically contain information about the derivation of the
 `payer_key`.  This should not leak any information (such as using a simple
@@ -673,6 +682,12 @@ the invoice request amount exceeds the amount it's expecting (i.e. its
 any).  Note that for recurring invoices with `proportional_amount`
 set, the `amount` in the invoice request will be scaled by the time in
 the period; the sender should not attempt to scale it.
+
+`replace_invoice` allows the mutually-agreed removal of and old unpaid
+invoice; this can be used in the case of stuck payments.  If
+successful in replacing the stuck invoice, the sender may make a
+second payment such that it can prove double-payment should the
+receiver still accept the first, delayed payment.
 
 # Invoices
 
@@ -753,6 +768,9 @@ using `onion_message` `invoice` field.
     1. type: 52 (`refund_signature`)
     2. data:
         * [`bip340sig`:`payer_signature`]
+    1. type: 56 (`replace_invoice`)
+    2. data:
+        * [`sha256`:`payment_hash`]
     1. type: 240 (`signature`)
     2. data:
         * [`bip340sig`:`sig`]
@@ -833,6 +851,7 @@ A writer of an invoice:
     - MUST set (or not set) `recurrence_start` exactly as the invoice_request did.
     - MUST set `payer_key` exactly as the invoice_request did.
     - MUST set (or not set) `payer_info` exactly as the invoice_request did.
+    - MUST set (or not set) `replace_invoice` exactly as the invoice_request did.
     - MUST begin `description` with the `description` from the offer.
     - MAY append additional information to `description` (e.g. " +shipping").
     - if it does not set `amount` to the *base invoice amount* calculated from the invoice_request:
