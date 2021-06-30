@@ -192,7 +192,7 @@ The human-readable prefix for offers is `lno`.
 
 ## TLV Fields for Offers
 
-1. tlvs: `offer`
+1. `tlv_stream`: `offer`
 2. types:
     1. type: 2 (`chains`)
     2. data:
@@ -507,7 +507,7 @@ invoices is `lnr`.
 
 ## TLV Fields for `invoice_request`
 
-1. tlvs: `invoice_request`
+1. `tlv_stream`: `invoice_request`
 2. types:
     1. type: 2 (`chains`)
     2. data:
@@ -711,7 +711,7 @@ The human-readable prefix for invoices is `lni`.  It can be sent in
 response to an `invoice_request` or an `offer` with `send_invoice`
 using `onion_message` `invoice` field.
 
-1. tlvs: `invoice`
+1. `tlv_stream`: `invoice`
 2. types:
     1. type: 2 (`chains`)
     2. data:
@@ -995,7 +995,7 @@ field (via the onion `reply_path`) for either `invoice_request` or
 
 ## TLV Fields for `invoice_error`
 
-1. tlvs: `invoice_error`
+1. `tlv_stream`: `invoice_error`
 2. types:
     1. type: 1 (`erroneous_field`)
     2. data:
