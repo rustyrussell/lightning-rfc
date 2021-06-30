@@ -727,6 +727,9 @@ using `onion_message` `invoice` field.
     1. type: 18 (`blindedpay`)
     2. data:
         * [`...*blinded_payinfo`:`payinfo`]
+    1. type: 19 (`blindedcapacities`)
+    2. data:
+        * [`...*u64`:`msat`]
     1. type: 20 (`vendor`)
     2. data:
         * [`...*utf8`:`vendor`]
@@ -838,8 +841,10 @@ A writer of an invoice:
   - if it includes `blinded_path`:
     - MUST specify `path` in order of most-preferred to least-preferred if
       it has a preference.
-    - MUST include `blinded_payinfo` with exactly one `payinfo` for
+    - MUST include `blindedpay` with exactly one `payinfo` for
       each `onionmsg_path` in `blinded_path`, in order.
+    - if it includes `blindedcapacities`:
+	  - MUST include exactly one value (in millisatoshis) per `path`.
     - SHOULD ignore any payment which does not use one of the paths.
   - otherwise:
     - MUST NOT include `blinded_payinfo`.
