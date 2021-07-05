@@ -662,6 +662,7 @@ The reader of an invoice_request:
             of the previous period.
   - otherwise (the offer had no `recurrence`):
     - MUST fail the request if there is a `recurrence_counter` field.
+    - MUST fail the request if there is a `recurrence_start` field.
 
 ## Rationale
 
