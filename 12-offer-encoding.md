@@ -542,7 +542,7 @@ invoices is `lnr`.
     1. type: 56 (`replace_invoice`)
     2. data:
         * [`sha256`:`payment_hash`]
-    1. type: 242 (`payer_signature`)
+    1. type: 240 (`payer_signature`)
     2. data:
         * [`bip340sig`:`sig`]
 
