@@ -130,15 +130,9 @@ the funding transaction and both versions of the commitment transaction.
     1. type: 0 (`upfront_shutdown_script`)
     2. data:
         * [`...*byte`:`shutdown_scriptpubkey`]
-    1. type: 1 (`channel_types`)
+    1. type: 1 (`channel_type`)
     2. data:
-        * [`...*channel_type`:`types`]
-
-1. subtype: `channel_type`
-2. data:
-    * [`u16`:`len`]
-    * [`len*byte`:`features`]
- 
+        * [`...*byte`:`type`]
 
 The `chain_hash` value denotes the exact blockchain that the opened channel will
 reside within. This is usually the genesis hash of the respective blockchain.
@@ -206,12 +200,18 @@ know this node will accept `funding_satoshis` greater than or equal to 2^24.
 Since it's broadcast in the `node_announcement` message other nodes can use it to identify peers 
 willing to accept large channel even before exchanging the `init` message with them. 
 
-Channel features are explicitly enumerated as `channel_type`
-bitfields, using odd features bits.  The currently defined types are:
+#### Defined Channel Types
+
+Channel types are an explicit enumeration: for convenience of future
+definitions they reuse even feature bits, but they are not an
+arbitrary combination (they represent the persistent features which
+affect the channel operation).
+
+The currently defined types are:
   - no features (no bits set)
-  - `option_static_remotekey` (bit 13)
-  - `option_anchor_outputs` and `option_static_remotekey` (bits 21 and 13)
-  - `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 23 and 13)
+  - `option_static_remotekey` (bit 12)
+  - `option_anchor_outputs` and `option_static_remotekey` (bits 20 and 12)
+  - `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 22 and 12)
 
 #### Requirements
 
@@ -233,9 +233,10 @@ The sending node:
     - MAY include `upfront_shutdown_script`.
   - if it includes `open_channel_tlvs`:
     - MUST include `upfront_shutdown_script`.
-  - if it includes `channel_types`:
-    - MUST include at least one `channel_type`
-    - MUST order them from most preferred to least preferred
+  - if it includes `channel_type`:
+    - MUST set it to a defined type representing the type it wants.
+	- MUST use the smallest bitmap possible to represent the channel tyoe.
+	- SHOULD NOT set it to a type containing a feature which was not negotiated.
 
 The sending node SHOULD:
   - set `to_self_delay` sufficient to ensure the sender can irreversibly spend a commitment transaction output, in case of misbehavior by the receiver.
@@ -271,7 +272,7 @@ are not valid secp256k1 pubkeys in compressed format.
   - the funder's amount for the initial commitment transaction is not sufficient for full [fee payment](03-transactions.md#fee-payment).
   - both `to_local` and `to_remote` amounts for the initial commitment transaction are less than or equal to `channel_reserve_satoshis` (see [BOLT 3](03-transactions.md#commitment-transaction-outputs)).
   - `funding_satoshis` is greater than or equal to 2^24 and the receiver does not support `option_support_large_channel`. 
-  - It supports `channel_types`, `channel_types` was set, and none of the `types` are suitable.
+  - It supports `channel_type`, `channel_type` was set, and the `type` is not suitable.
 
 The receiving node MUST NOT:
   - consider funds received, using `push_msat`, to be received until the funding transaction has reached sufficient depth.
@@ -327,7 +328,7 @@ funding transaction and both versions of the commitment transaction.
         * [`...*byte`:`shutdown_scriptpubkey`]
     1. type: 1 (`channel_type`)
     2. data:
-        * [`channel_type`:`type`]
+        * [`...*byte`:`type`]
 
 #### Requirements
 
@@ -340,8 +341,7 @@ avoid double-spending of the funding transaction.
   - MUST set `channel_reserve_satoshis` greater than or equal to `dust_limit_satoshis` from the `open_channel` message.
   - MUST set `dust_limit_satoshis` less than or equal to `channel_reserve_satoshis` from the `open_channel` message.
   - if it sets `channel_type`:
-    - MUST set it to one of the `channel_types` from `open_channel`
-    - SHOULD set it to its preferred `channel_type`, or the first in `channel_types` if there is more than one equal preference.
+    - MUST set it to the `channel_type` from `open_channel`
 
 The receiver:
   - if `minimum_depth` is unreasonably large:
@@ -350,7 +350,7 @@ The receiver:
     - MUST reject the channel.
   - if `channel_reserve_satoshis` from the `open_channel` message is less than `dust_limit_satoshis`:
     - MUST reject the channel.
-  - if `channel_type` is not one of the `channel_types` from `open_channel`:
+  - if `channel_type` is set, and `channel_type` was set in `open_channel`, and they are not equal types:
     - MUST reject the channel.
 
 
@@ -412,15 +412,15 @@ This message introduces the `channel_id` to identify the channel. It's derived f
 #### Requirements
 
 Both peers:
-  - if `channel_types` (in `open_channel`) and `channel_type` (in `accept_channel`) were sent:
-    - the `channel_type` is taken from `accept_channel`.
+  - if `channel_type` was present in both `open_channel` and `accept_channel`):
+    - this is the `channel_type` (they must be equal, required above)
   - otherwise:
     - if `option_anchors_zero_fee_htlc_tx` was negotiated:
-      - the `channel_type` is `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 23 and 13)
+      - the `channel_type` is `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 22 and 12)
     - otherwise, if `option_anchor_outputs` was negotiated:
-      - the `channel_type` is `option_anchor_outputs` and `option_static_remotekey` (bits 21 and 13)
+      - the `channel_type` is `option_anchor_outputs` and `option_static_remotekey` (bits 20 and 12)
     - otherwise, if `option_static_remotekey` was negotiated:
-      - the `channel_type` is `option_static_remotekey` (bit 13)
+      - the `channel_type` is `option_static_remotekey` (bit 12)
     - otherwise:
       - the `channel_type` is empty
   - MUST use that `channel_type` for all commitment transactions.
