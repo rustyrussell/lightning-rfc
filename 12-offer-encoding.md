@@ -116,30 +116,31 @@ See [format-string-test.json](bolt12/format-string-test.json).
 
 ## Signature Calculation
 
-All signatures are created as per [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki), and tagged as recommended
-there.  Thus to sign a message `msg` with `tag`, `m` is
-SHA256(SHA256(`tag`) || SHA256(`tag`) || `msg`).  The notation used
-here is `SIG(tag,msg,key)`.
+All signatures are created as per
+[BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki),
+and tagged as recommended there.  Thus we define H(`tag`,`msg`) as
+SHA256(SHA256(`tag`) || SHA256(`tag`) || `msg`), and SIG(`tag`,`msg`,`key`)
+as the signature of H(`tag`,`msg`) using `key`.
 
 Each form is signed using one or more TLV signature elements; TLV
 types 240 through 1000 are considered signature elements.  For these
 the tag is `lightning` | `messagename` | `fieldname`, and `msg` is the
 Merkle-root; `lightning` is the literal 9-byte ASCII string,
-`messagename` is the name of the TLV stream being signed (i.e. `offer`
-or `invoice`) and the `fieldname` is the TLV field containing the
-signature (e.g. `signature` or `recurrence_signature`).
+`messagename` is the name of the TLV stream being signed (i.e. `offer`, `invoice_request` or `invoice`) and the `fieldname` is the TLV field containing the
+signature (e.g. `signature` or `payer_signature`).
 
 The formulation of the Merkle tree is similar to that proposed in
-[BIP-taproot], with the insertion of alternate "dummy" leaves to avoid
-revealing adjacent nodes in proofs.
+[BIP-taproot], with the each TLV leaf paired with a nonce leaf to avoid
+revealing adjacent nodes in proofs (assuming there is a non-revealed TLV
+which has enough entropy).
 
-The Merkle tree's leaves are, in TLV-ascending order:
-1. The SHA256 of: `LnLeaf` followed by the TLV entry.
-2. The SHA256 of: `LnAll` followed all non-signature TLV entries appended in ascending order.
+The Merkle tree's leaves are, in TLV-ascending order for each tlv:
+1. The H(`LnLeaf`,tlv).
+2. The H(`LnAll`|all-tlvs,tlv) where "all-tlvs" consists of all non-signature TLV entries appended in ascending order.
 
-The Merkle tree inner nodes are SHA256(`LnBranch` | lesser-SHA256 |
-greater-SHA256); this ordering means that proofs are more compact
-since left/right is inherently determined.
+The Merkle tree inner nodes are H(`LnBranch`, lesser-SHA256|greater-SHA256);
+this ordering means that proofs are more compact since left/right is
+inherently determined.
 
 If there are not exactly a power of 2 leaves, then the tree depth will
 be uneven, with the deepest tree on the lowest-order leaves.
@@ -147,38 +148,36 @@ be uneven, with the deepest tree on the lowest-order leaves.
 e.g. consider the encoding of an `offer` `signature` with TLVs TLV1, TLV2 and TLV3:
 
 ```
-LALL=SHA256(`LnAll`|TLV1|TLV2|TLV3) 
-L1=SHA256(`LnLeaf`|TLV1)
-L2=SHA256(`LnLeaf`|TLV2)
-L3=SHA256(`LnLeaf`|TLV3)
+L1=H(`LnLeaf`,TLV1)
+L1nonce=H(`LnAll`|TLV1|TLV2|TLV3,TLV1) 
+L2=H(`LnLeaf`,TLV2)
+L2nonce=H(`LnAll`|TLV1|TLV2|TLV3,TLV2) 
+L3=H(`LnLeaf`,TLV3)
+L3nonce=H(`LnAll`|TLV1|TLV2|TLV3,TLV3) 
 
-Assume L1 < LALL, and L2 > LALL.
+Assume L1 < L1nonce, and L2 > L2nonce.
 
-   L1    LALL                        L2   LALL                   L3
+   L1    L1nonce                      L2   L2nonce               L3
      \   /                             \   /                     |
       v v                               v v                      v
-L1A=SHA256('LnBranch'|L1|LALL)  L2A=SHA256('LnBranch'|LALL|L2)   L3
+L1A=H('LnBranch',L1|L1nonce) L2A=H('LnBranch',L2nonce|L2)       L3
                  
 Assume L1A < L2A:
 
        L1A   L2A                                 L3
          \   /                                    |
           v v                                     v
-  L1A2A=SHA256('LnBranch'|L1A|L2A)               L3
+  L1A2A=H('LnBranch',L1A|L2A)                    L3
   
 Assume L1A2A > L3:
 
-  L1A2A=SHA256('LnBranch'|L1A|L2A)      L3
+  L1A2A=H('LnBranch',L1A|L2A)          L3
                           \            /
                            v          v
-                Root=SHA256('LnBranch'|L3|L1A2A)
+                Root=H('LnBranch',L3|L1A2A)
 
 Signature = SIG('lightningoffersignature', Root, nodekey)
 ```
-
-## Rationale
-
-FIXME: some taproot, some about obscuring leaves in Merkle proofs.
 
 # Offers
 
