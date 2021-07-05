@@ -734,9 +734,9 @@ using `onion_message` `invoice` field.
     1. type: 18 (`blindedpay`)
     2. data:
         * [`...*blinded_payinfo`:`payinfo`]
-    1. type: 19 (`blindedcapacities`)
+    1. type: 19 (`blinded_capacities`)
     2. data:
-        * [`...*u64`:`msat`]
+        * [`...*u64`:`incoming_msat`]
     1. type: 20 (`vendor`)
     2. data:
         * [`...*utf8`:`vendor`]
@@ -853,8 +853,8 @@ A writer of an invoice:
       it has a preference.
     - MUST include `blindedpay` with exactly one `payinfo` for
       each `onionmsg_path` in `blinded_path`, in order.
-    - if it includes `blindedcapacities`:
-	  - MUST include exactly one value (in millisatoshis) per `path`.
+    - if it includes `blinded_capacities`:
+      - MUST include exactly one `incoming_msat` (in millisatoshis) per `path`, reflecting the expected minimum amount that can be sent through the path.
     - SHOULD ignore any payment which does not use one of the paths.
   - otherwise:
     - MUST NOT include `blinded_payinfo`.
@@ -873,7 +873,7 @@ A writer of an invoice:
     - MUST set `payer_key` exactly as the invoice_request did.
     - MUST set (or not set) `payer_info` exactly as the invoice_request did.
     - MUST set (or not set) `payer_note` exactly as the invoice_request did,
-	  or MUST not set it.
+      or MUST not set it.
     - MUST set (or not set) `replace_invoice` exactly as the invoice_request did.
     - MUST begin `description` with the `description` from the offer.
     - MAY append additional information to `description` (e.g. " +shipping").
@@ -986,6 +986,10 @@ time for payment.
 The invoice issuer is allows to ignore `payer_note` (it has an odd
 number, so is optional), but if it does not, it must copy it exactly
 as the invoice_request specified.
+
+It's often useful to provide capacity hints, particularly where more
+than one blinded path is included, for payers to use multi-part
+payments.
 
 # Invoice Errors
 
