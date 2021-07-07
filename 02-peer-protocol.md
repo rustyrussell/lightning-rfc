@@ -235,8 +235,8 @@ The sending node:
     - MUST include `upfront_shutdown_script`.
   - if it includes `channel_type`:
     - MUST set it to a defined type representing the type it wants.
-	- MUST use the smallest bitmap possible to represent the channel tyoe.
-	- SHOULD NOT set it to a type containing a feature which was not negotiated.
+    - MUST use the smallest bitmap possible to represent the channel tyoe.
+    - SHOULD NOT set it to a type containing a feature which was not negotiated.
 
 The sending node SHOULD:
   - set `to_self_delay` sufficient to ensure the sender can irreversibly spend a commitment transaction output, in case of misbehavior by the receiver.
