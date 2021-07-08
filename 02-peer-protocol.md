@@ -235,7 +235,7 @@ The sending node:
     - MUST include `upfront_shutdown_script`.
   - if it includes `channel_type`:
     - MUST set it to a defined type representing the type it wants.
-    - MUST use the smallest bitmap possible to represent the channel tyoe.
+    - MUST use the smallest bitmap possible to represent the channel type.
     - SHOULD NOT set it to a type containing a feature which was not negotiated.
 
 The sending node SHOULD:
@@ -412,8 +412,8 @@ This message introduces the `channel_id` to identify the channel. It's derived f
 #### Requirements
 
 Both peers:
-  - if `channel_type` was present in both `open_channel` and `accept_channel`):
-    - this is the `channel_type` (they must be equal, required above)
+  - if `channel_type` was present in both `open_channel` and `accept_channel`:
+    - This is the `channel_type` (they must be equal, required above)
   - otherwise:
     - if `option_anchors_zero_fee_htlc_tx` was negotiated:
       - the `channel_type` is `option_anchors_zero_fee_htlc_tx` and `option_static_remotekey` (bits 22 and 12)
